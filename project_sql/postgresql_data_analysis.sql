@@ -1,0 +1,163 @@
+--1. What are top-paying data analyst job?
+SELECT
+    jf.job_id,
+    jf.job_title,
+    jf.job_location,
+    jf.job_schedule_type,
+    jf.salary_year_avg,
+    jf.job_posted_date,
+    cd.name AS company_name
+FROM 
+    job_postings_fact jf
+LEFT JOIN 
+    company_dim cd
+ON
+    jf.company_id = cd.company_id
+WHERE 
+    job_title_short = 'Data Analyst' AND 
+    job_location = 'Anywhere' AND 
+    salary_year_avg IS NOT NULL
+ORDER BY
+    salary_year_avg DESC
+LIMIT 10
+
+--2.What are the skills required for these top-paying roles?
+
+WITH top_paying_jobs AS (
+    SELECT
+        jf.job_id,
+        jf.job_title,
+        jf.salary_year_avg,
+        cd.name AS company_name
+    FROM 
+        job_postings_fact jf
+    LEFT JOIN 
+        company_dim cd
+    ON
+        jf.company_id = cd.company_id
+    WHERE 
+        job_title_short = 'Data Analyst' AND 
+        job_location = 'Anywhere' AND 
+        salary_year_avg IS NOT NULL
+    ORDER BY
+        salary_year_avg DESC
+    LIMIT 10
+)
+SELECT 
+    tpj.*,
+    sd.skills
+FROM 
+    top_paying_jobs tpj
+INNER JOIN skills_job_dim jd ON TPJ.job_id = jd.job_id
+INNER JOIN skills_dim sd ON jd.skill_id = sd.skill_id
+
+--3.What are the most in-demand skills for my role?
+
+SELECT
+    sd.skills,
+    COUNT(jd.job_id) AS job_count
+FROM 
+    job_postingS_fact jf
+INNER JOIN skills_job_dim jd ON jf.job_id = jd.job_id
+INNER JOIN skills_dim sd ON jd.skill_id = sd.skill_id
+WHERE 
+    jf.job_title_short = 'Data Analyst'
+GROUP BY 
+    sd.skills
+ORDER BY
+    job_count DESC
+LIMIT 5
+
+--4.What are the top skills based on salary for my role?
+
+SELECT
+    sd.skills,
+    ROUND(AVG(salary_year_avg), 2) AS avg_salary
+FROM 
+    job_postingS_fact jf
+INNER JOIN skills_job_dim jd ON jf.job_id = jd.job_id
+INNER JOIN skills_dim sd ON jd.skill_id = sd.skill_id
+WHERE 
+    jf.job_title_short = 'Data Analyst' AND
+    jf.salary_year_avg IS NOT NULL
+GROUP BY 
+    sd.skills
+ORDER BY
+    avg_salary DESC
+LIMIT 25
+
+/* 5.What are the most optimal skills to learn>
+	a. Optimal : High Demand and High Paying */
+
+--CTE
+WITH skills_demand AS (
+    SELECT
+        sd.skill_id,
+        sd.skills,
+        COUNT(jd.job_id) AS job_count
+    FROM 
+        job_postingS_fact jf
+    INNER JOIN skills_job_dim jd ON jf.job_id = jd.job_id
+    INNER JOIN skills_dim sd ON jd.skill_id = sd.skill_id
+    WHERE 
+        jf.job_title_short = 'Data Analyst' AND
+        jf.salary_year_avg IS NOT NULL AND
+        jf.job_work_from_home = true
+    GROUP BY 
+        sd.skill_id
+),
+avg_salary AS (
+    SELECT
+        sd.skill_id,
+        sd.skills,
+        ROUND(AVG(salary_year_avg), 2) AS avg_salary
+    FROM 
+        job_postingS_fact jf
+    INNER JOIN skills_job_dim jd ON jf.job_id = jd.job_id
+    INNER JOIN skills_dim sd ON jd.skill_id = sd.skill_id
+    WHERE 
+        jf.job_title_short = 'Data Analyst' AND
+        jf.salary_year_avg IS NOT NULL AND
+        jf.job_work_from_home = true
+    GROUP BY 
+        sd.skill_id
+)
+SELECT 
+    skills_demand.skill_id,
+    skills_demand.skills,
+    job_count,
+    avg_salary
+FROM 
+    skills_demand
+INNER JOIN
+    avg_salary ON skills_demand.skill_id = avg_salary.skill_id
+ORDER BY 
+    job_count DESC,
+    avg_salary DESC
+LIMIT 25
+
+--Rewrite from CTE
+SELECT 
+    sd.skill_id,
+    sd.skills,
+    COUNT(jd.job_id) AS job_count,
+    ROUND(AVG(salary_year_avg), 2) AS avg_salary
+FROM 
+    job_postingS_fact jf
+INNER JOIN skills_job_dim jd ON jf.job_id = jd.job_id
+INNER JOIN skills_dim sd ON jd.skill_id = sd.skill_id
+WHERE 
+    jf.job_title_short = 'Data Analyst' AND
+    jf.salary_year_avg IS NOT NULL AND
+    jf.job_work_from_home = true
+GROUP BY
+    sd.skill_id,
+    sd.skills
+HAVING 
+    COUNT(jd.job_id) > 30
+ORDER BY 
+    avg_salary DESC,
+    job_count DESC
+LIMIT 25
+
+
